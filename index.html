@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Митенька</title>
+    <style>
+      button.active {
+        background-color: lightskyblue;
+      }
+    </style>
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/@alpinejs/persist@3.x.x/dist/cdn.min.js"
+    ></script>
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"
+    ></script>
+    <script
+      type="module"
+      src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"
+    ></script>
+    <script
+      nomodule
+      src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"
+    ></script>
+
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=" />
+  </head>
+  <body>
+    <h1>Дневниковая карточка</h1>
+    <div
+      x-data="{
+        dayNames: [
+          'Понедельник',
+          'Вторник',
+          'Среда',
+          'Четверг',
+          'Пятница',
+          'Суббота',
+          'Воскресенье',
+        ],
+        currentDayIndex: $persist(0),
+        history: $persist([]),
+        problems: $persist([]),
+        exportData() {
+          if (!navigator.share) {
+            alert('Ваш браузер не поддерживает экспорт данных');
+            return;
+          }
+          let markdownContent = '# История оценок\n\n';
+          this.history.forEach(entry => {
+            markdownContent += `## ${entry.day}\n\n`;
+            entry.problems.forEach(problem => {
+              markdownContent += `- **Проблема:** ${problem.name}\n`;
+              markdownContent += `  - **Тип:** ${problem.type}\n`;
+              markdownContent += `  - **Оценка:** ${problem.value}\n\n`;
+            });
+          });
+          const blob = new Blob([markdownContent], { type: 'text/markdown;charset=utf-8;' });
+          const file = new File([blob], 'history.md', { type: 'text/markdown' });
+
+          navigator.share({
+            title: 'Дневниковая карточка',
+            text: 'История оценок',
+            files: [file]
+          }).then(() => {
+            this.history = [];
+          }).catch(() => {
+            alert('Не удалось экспортировать данные');
+          });
+        }
+      }"
+    >
+      <form
+        x-data="{
+          problemDescription: '',
+          problemAssessmentType: 'yes-no'
+        }"
+        @submit.prevent="problems.push({
+          name: problemDescription,
+          type: problemAssessmentType,
+          value: null
+        });
+        problemDescription = '';
+        problemAssessmentType = 'yes-no';
+        $refs.problemDescription.focus();"
+      >
+        <div>
+          <input
+            type="text"
+            name="problem-description"
+            x-model="problemDescription"
+            x-ref="problemDescription"
+            placeholder="Проблемное поведение"
+            autofocus
+            autocomplete="off"
+          />
+        </div>
+        <div>
+          <input
+            id="yes-no"
+            type="radio"
+            name="problem-assessment-type"
+            value="yes-no"
+            x-model="problemAssessmentType"
+          />
+          <label for="yes-no">Было или не было</label>
+        </div>
+        <div>
+          <input
+            id="scale"
+            type="radio"
+            name="problem-assessment-type"
+            value="scale"
+            x-model="problemAssessmentType"
+          />
+          <label for="scale">Шкала от нуля до пяти</label>
+        </div>
+        <div>
+          <input
+            id="text"
+            type="radio"
+            name="problem-assessment-type"
+            value="text"
+            x-model="problemAssessmentType"
+          />
+          <label for="text">Произвольный текст</label>
+        </div>
+        <div>
+          <button type="submit">Добавить</button>
+        </div>
+      </form>
+
+      <h2 x-text="dayNames[currentDayIndex]"></h2>
+
+      <button @click="currentDayIndex = (currentDayIndex + 6) % 7">
+        Предыдущий день
+      </button>
+      <button @click="currentDayIndex = (currentDayIndex + 1) % 7">
+        Следующий день
+      </button>
+
+      <table border="1" width="100%">
+        <thead>
+          <tr>
+            <th>Проблема</th>
+            <th>Оценка</th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="(problem, index) in problems" :key="index">
+            <tr>
+              <td x-text="problem.name"></td>
+              <td>
+                <template x-if="problem.type === 'yes-no'">
+                  <div>
+                    <button
+                      @click="problem.value = true"
+                      :class="{ 'active': problem.value }"
+                    >
+                      Было
+                    </button>
+                    <button
+                      @click="problem.value = false"
+                      :class="{ 'active': problem.value === false }"
+                    >
+                      Не было
+                    </button>
+                  </div>
+                </template>
+                <template x-if="problem.type === 'scale'">
+                  <div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="5"
+                      x-model="problem.value"
+                    />
+                    <output x-text="problem.value"></output>
+                  </div>
+                </template>
+                <template x-if="problem.type === 'text'">
+                  <input type="text" x-model="problem.value" />
+                </template>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+      <button @click="problems.forEach(problem => problem.value = null)">
+        Сбросить все оценки
+      </button>
+      <button
+        @click="
+          if (problems.some(problem => problem.value === null)) {
+            alert('Не все оценки заполнены');
+            return;
+          }
+          history.push({
+            day: dayNames[currentDayIndex],
+            problems: problems.map(problem => ({
+              name: problem.name,
+              type: problem.type,
+              value: problem.value
+            }))
+          });
+          problems.forEach(problem => problem.value = null);"
+      >
+        Сохранить оценки
+      </button>
+      <button @click="exportData()">Экспорт</button>
+    </div>
+  </body>
+</html>
